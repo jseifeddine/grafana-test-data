@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Pushgateway — generators push HAProxy and K8s metrics here.
+  # honor_labels preserves the 'instance', 'origin_prometheus', etc. labels
+  # that come from the generators rather than being overwritten by Prometheus.
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['pushgateway:9091']
+
+  # VictoriaMetrics self-monitoring (runs on port 8428 internally)
+  - job_name: 'victoriametrics'
+    static_configs:
+      - targets: ['localhost:8428']

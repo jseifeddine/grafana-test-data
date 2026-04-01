@@ -1,0 +1,12 @@
+apiVersion: 1
+
+datasources:
+  # UID must match the hardcoded value in powerdns.json
+  - name: Graphite
+    type: graphite
+    uid: graphite-main
+    url: http://graphite:80
+    access: proxy
+    isDefault: false
+    jsonData:
+      graphiteVersion: "1.1"

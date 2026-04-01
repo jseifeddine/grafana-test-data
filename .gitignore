@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Python (in case anyone runs scripts locally for debugging)
+.venv/
+**__pycache__**
+*.pyc

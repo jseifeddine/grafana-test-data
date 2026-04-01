@@ -1,0 +1,141 @@
+services:
+
+  # ── infrastructure ──────────────────────────────────────────────────────────
+
+  grafana:
+    image: grafana/grafana-enterprise:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin321
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning
+      - ./dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+      - influxdb
+      - graphite
+
+  # VictoriaMetrics: Prometheus-compatible TSDB with a timestamped import API
+  # that lets prometheus-backfill inject years of history in seconds.
+  prometheus:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - "--promscrape.config=/etc/prometheus/prometheus.yml"
+      - "--storageDataPath=/prometheus"
+      - "--retentionPeriod=30d"
+    ports:
+      - "9090:8428"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-storage:/prometheus
+
+  pushgateway:
+    image: prom/pushgateway:latest
+    container_name: pushgateway
+    restart: unless-stopped
+    ports:
+      - "9091:9091"
+
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    restart: unless-stopped
+    environment:
+      INFLUXDB_DB: telegraf
+      INFLUXDB_HTTP_AUTH_ENABLED: "false"
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-storage:/var/lib/influxdb
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8086/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  graphite:
+    image: graphiteapp/graphite-statsd:1.1.10-5
+    container_name: graphite
+    restart: unless-stopped
+    ports:
+      - "2003:2003"   # Carbon plaintext (TCP)
+      - "8180:80"     # Graphite HTTP API (also used by Grafana)
+    volumes:
+      - ./graphite/storage-schemas.conf:/opt/graphite/conf/storage-schemas.conf:ro
+      - ./graphite/storage-aggregation.conf:/opt/graphite/conf/storage-aggregation.conf:ro
+      - graphite-storage:/opt/graphite/storage
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z graphite 2003 || exit 1"]
+      interval: 1m
+      timeout: 5s
+      start_period: 10s
+
+
+  # ── generators ──────────────────────────────────────────────────────────────
+  # Built from generators/Dockerfile.  All wait internally for their upstream
+  # service to be ready before writing data, so no healthcheck dependency is
+  # needed on the scratch-based Prometheus / Pushgateway images.
+
+  # haproxy-generator owns the build; the other three just reference the image.
+  haproxy-generator:
+    build: ./generators
+    image: grafana-test-generators
+    container_name: haproxy-generator
+    restart: unless-stopped
+    command: ["python3", "haproxy_generator.py"]
+    depends_on:
+      - pushgateway
+
+  k8s-generator:
+    image: grafana-test-generators
+    container_name: k8s-generator
+    restart: unless-stopped
+    command: ["python3", "k8s_generator.py"]
+    depends_on:
+      - pushgateway
+      - haproxy-generator   # ensures image is built before this starts
+
+  linux-generator:
+    image: grafana-test-generators
+    container_name: linux-generator
+    restart: unless-stopped
+    command: ["python3", "linux_generator.py", "--days", "${BACKFILL_DAYS:-7}"]
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      haproxy-generator:    # ensures image is built before this starts
+        condition: service_started
+
+  # Runs once to inject historical HAProxy + K8s data, then exits.
+  prometheus-backfill:
+    image: grafana-test-generators
+    container_name: prometheus-backfill
+    restart: "no"
+    command: ["python3", "prometheus_backfill.py", "--days", "${BACKFILL_DAYS:-7}"]
+    depends_on:
+      - prometheus
+      - haproxy-generator   # ensures image is built before this starts
+
+  powerdns-generator:
+    image: grafana-test-generators
+    container_name: powerdns-generator
+    restart: unless-stopped
+    command: ["python3", "powerdns_generator.py", "--days", "${BACKFILL_DAYS:-7}"]
+    depends_on:
+      graphite:
+        condition: service_healthy
+      haproxy-generator:    # ensures image is built before this starts
+        condition: service_started
+
+volumes:
+  grafana-storage:
+  prometheus-storage:
+  influxdb-storage:
+  graphite-storage:
