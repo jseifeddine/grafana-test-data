@@ -1,0 +1,48 @@
+# compose.single.yml — run the entire stack as ONE container.
+#
+# Every service from compose.yml (Grafana, VictoriaMetrics, Pushgateway,
+# InfluxDB, Graphite+StatsD, all generators) is combined into a single image
+# managed by supervisord.  Functionality is identical; only the isolation model
+# changes.
+#
+# Usage:
+#   ./init.sh                    # original multi-container stack  (compose.yml)
+#   docker compose -f compose.single.yml up -d --build   # all-in-one image
+#
+# Ports exposed are the same as in compose.yml so that any existing tooling
+# pointing at localhost:3000, :9090, :9091, :8086, :8180 continues to work.
+
+services:
+  grafana-all-in-one:
+    build:
+      context: .
+      dockerfile: all-in-one/Dockerfile
+    image: jseifeddine/grafana-test-data-aio
+    container_name: grafana-all-in-one
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin321
+      BACKFILL_DAYS: "${BACKFILL_DAYS:-7}"
+    ports:
+      - "3000:3000"   # Grafana
+      # - "9090:8428"   # VictoriaMetrics  (same external port as compose.yml)
+      # - "9091:9091"   # Pushgateway
+      # - "8086:8086"   # InfluxDB
+      # - "2003:2003"   # Carbon plaintext TCP
+      # - "8180:80"     # Graphite HTTP API (same external port as compose.yml)
+    # volumes:
+    #   - aio-grafana:/var/lib/grafana
+    #   - aio-prometheus:/prometheus
+    #   - aio-influxdb:/var/lib/influxdb
+    #   - aio-graphite:/opt/graphite/storage
+      # Optional: mount host dashboards directory to pick up live edits
+      # note: now baked in the image
+      # - ./all-in-one/provisioning:/etc/grafana/provisioning
+      # - ./dashboards:/var/lib/grafana/dashboards
+
+
+# volumes:
+#   aio-grafana:
+#   aio-prometheus:
+#   aio-influxdb:
+#   aio-graphite:

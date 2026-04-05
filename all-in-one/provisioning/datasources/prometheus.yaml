@@ -1,0 +1,14 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus-main
+    # VictoriaMetrics internal port is 8428; everything is localhost in the
+    # all-in-one container (compose.yml uses the "prometheus" service name).
+    url: http://localhost:8428
+    access: proxy
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: "15s"

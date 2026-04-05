@@ -1,0 +1,13 @@
+apiVersion: 1
+
+datasources:
+  # UID must match the hardcoded value in telegraf-linux-system.json
+  - name: InfluxDB - Telegraf
+    type: influxdb
+    uid: bdxkgrpteayo0d
+    url: http://localhost:8086
+    access: proxy
+    database: telegraf
+    isDefault: false
+    jsonData:
+      httpMode: GET

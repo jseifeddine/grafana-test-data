@@ -1,0 +1,13 @@
+apiVersion: 1
+
+datasources:
+  # UID must match the hardcoded value in powerdns.json
+  - name: Graphite
+    type: graphite
+    uid: graphite-main
+    # nginx proxies port 80 → gunicorn graphite-web on 127.0.0.1:8001
+    url: http://localhost:80
+    access: proxy
+    isDefault: false
+    jsonData:
+      graphiteVersion: "1.1"

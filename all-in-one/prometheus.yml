@@ -1,0 +1,18 @@
+# VictoriaMetrics scrape config for the all-in-one container.
+# All targets use localhost because everything runs in the same process namespace.
+# (Original compose.yml uses service DNS names; functionally identical here.)
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Pushgateway — generators push HAProxy and K8s metrics here.
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['localhost:9091']
+
+  # VictoriaMetrics self-monitoring
+  - job_name: 'victoriametrics'
+    static_configs:
+      - targets: ['localhost:8428']
